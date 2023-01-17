@@ -23,28 +23,37 @@ checkBoxFactorer <- function(data,variableName,variableValues,variableLabels){
 
   #assign('test',test,envir=.GlobalEnv) may want to impliment this to be more specific
 
-  redCAPdata<<-data %>%dplyr::mutate({{variableName}}:=.data[[variableName]]*as.integer(stringr::str_extract(variableName,'(?<=_)[0-9]+$')),
+  returnData<-data[variableName] %>%dplyr::mutate({{variableName}}:=.data[[variableName]]*as.integer(stringr::str_extract(variableName,'(?<=_)[0-9]+$')),
                         {{variableName}}:=factor(.data[[variableName]],
                                                  levels=variableValues,
                                                  labels=variableLabels))
+  return(returnData)
+
 }
 
 #Formatting b variables
 radioShortCatsFactorer <- function(data,variableName,variableValues,variableLabels){
 
-  redCAPdata<<-data %>%
+  returnData<-data[variableName] %>%
     dplyr::mutate({{variableName}}:=factor(.data[[variableName]],
                                            levels=variableValues,
                                            labels=variableLabels) %>% forcats::fct_rev())
+
+  return(returnData)
+
 }
 
 #Formatting b0 Variables
 radioBasicFactorer <- function(data,variableName,variableValues,variableLabels){
 
-  redCAPdata<<-data %>%
+  returnData<-data[variableName] %>%
     dplyr::mutate({{variableName}}:=factor(.data[[variableName]],
                                            levels=variableValues,
                                            labels=variableValues) %>% forcats::fct_rev())
+
+  return(returnData)
+
+
 }
 
 #' Load a modified version of a REDCap Data dictionary
@@ -123,17 +132,24 @@ readREDCapData <- function(path,longerDataDictionary, delim=','){
     dplyr::filter(tp=='dt') %$%
     dplyr::mutate(redCAPdata,dplyr::across(.col=tidyselect::all_of(varnm),lubridate::ymd))
 
-  longerDataDictionary %>%
-    dplyr::filter(tp=='01') %$%
-    purrr::pwalk(list(varnm,values,shortcats),~checkBoxFactorer(redCAPdata,..1,..2,..3))
 
-  longerDataDictionary %>%
-    dplyr::filter(tp=='b') %$%
-    purrr::pwalk(list(varnm,values,shortcats),~radioShortCatsFactorer(redCAPdata,..1,..2,..3))
+  for(currDataType in c('01','b','b0')){
+    dataOfCurrentType <- longerDataDict %>%
+      dplyr::filter(tp==currDataType) %>%
+      dplyr::select(varnm,values,shortcats)
 
-  longerDataDictionary %>%
-    dplyr::filter(tp=='b0') %$%
-    purrr::pwalk(list(varnm,values,shortcats),~radioBasicFactorer(redCAPdata,..1,..2,..3))
+    dataTypeVariables <- dataOfCurrentType %>%
+      dplyr::pull(varnm)
+
+    factorFunction <- switch(currDataType,
+                             `01`=checkBoxFactorer,
+                             `b`=radioShortCatsFactorer,
+                             `b0`=radioBasicFactorer)
+
+    redCAPdata[dataTypeVariables] <- dataOfCurrentType %$%
+      purrr::pmap(list(varnm,values,shortcats),~factorFunction(redCAPdata[dataTypeVariables],..1,..2,..3)) %>%
+      dplyr::bind_cols()
+  }
 
   return(redCAPdata)
 }
