@@ -1,14 +1,16 @@
+redCAPdata <- values <- tp <- expandedVarnm <- varnm <- shortcats <- longcats <- vis_id <- values <- NULL
 
 #Function for creating variable type list for redcap data
 createColList <- function(dataType,variableValues){
-  switch (dataType,
-          `$` = col_character(),
+  colType <- switch (dataType,
+          `$` = vroom::col_character(),
           `01` = 'i',
           `##` = 'n',
           `#` = 'i',
-          `dt` = col_character(),
-          `b` = col_factor(levels = variableValues),
-          `b0` = col_factor(levels = variableValues))
+          `dt` = vroom::col_character(),
+          `b` = vroom::col_factor(levels = variableValues),
+          `b0` = vroom::col_factor(levels = variableValues))
+  return(colType)
 }
 
 #Formatting CheckBoxVariables
@@ -21,7 +23,7 @@ checkBoxFactorer <- function(data,variableName,variableValues,variableLabels){
 
   #assign('test',test,envir=.GlobalEnv) may want to impliment this to be more specific
 
-  data<<-data %>%mutate({{variableName}}:=.data[[variableName]]*as.integer(str_extract(variableName,'(?<=_)[0-9]+$')),
+  redCAPdata<<-data %>%dplyr::mutate({{variableName}}:=.data[[variableName]]*as.integer(stringr::str_extract(variableName,'(?<=_)[0-9]+$')),
                         {{variableName}}:=factor(.data[[variableName]],
                                                  levels=variableValues,
                                                  labels=variableLabels))
@@ -30,76 +32,110 @@ checkBoxFactorer <- function(data,variableName,variableValues,variableLabels){
 #Formatting b variables
 radioShortCatsFactorer <- function(data,variableName,variableValues,variableLabels){
 
-  data<<-data %>%mutate({{variableName}}:=factor(.data[[variableName]],
-                                                 levels=variableValues,
-                                                 labels=variableLabels) %>% fct_rev())
+  redCAPdata<<-data %>%
+    dplyr::mutate({{variableName}}:=factor(.data[[variableName]],
+                                           levels=variableValues,
+                                           labels=variableLabels) %>% forcats::fct_rev())
 }
 
 #Formatting b0 Variables
 radioBasicFactorer <- function(data,variableName,variableValues,variableLabels){
 
-  data<<-data %>%mutate({{variableName}}:=factor(.data[[variableName]],
-                                                 levels=variableValues,
-                                                 labels=variableValues) %>% fct_rev())
+  redCAPdata<<-data %>%
+    dplyr::mutate({{variableName}}:=factor(.data[[variableName]],
+                                           levels=variableValues,
+                                           labels=variableValues) %>% forcats::fct_rev())
 }
 
-loadDataDictionary <- function(path){
-  dataDictionary <- read_csv(path) %>%
-    mutate(values=str_remove_all(values,'\"') %>% str_split(','),
-           shortcats=str_remove_all(shortcats,'\"') %>% str_split(','),
-           longcats=str_remove_all(longcats,'\"') %>% str_split(',')) %>%
-    mutate(tp=if_else(tp=='1','01',tp),
-           expandedVarnm=if_else(tp=='01',map2(varnm,values,function(.x,.y) (paste0(.x,'___',.y))),map(varnm,function(.x) (.x))))
+#' Load a modified version of a REDCap Data dictionary
+#'
+#' @param path a path to a modified version of the redcap data dictionary as a csv.
+#' @param delim the deliminator for the file type
+#'
+#' @return a formatted data dictionary
+#' @export
+#'
+#' @examples 'none'
+readDataDictionary <- function(path , delim=','){
+  dataDictionary <- vroom::vroom(path, delim=delim) %>%
+    dplyr::mutate(values=stringr::str_remove_all(values,'\"') %>% stringr::str_split(','),
+                  shortcats=stringr::str_remove_all(shortcats,'\"') %>% stringr::str_split(','),
+                  longcats=stringr::str_remove_all(longcats,'\"') %>% stringr::str_split(',')) %>%
+    dplyr::mutate(tp=dplyr::if_else(tp=='1','01',tp),
+                  expandedVarnm=dplyr::if_else(tp=='01',purrr::map2(varnm,values,function(.x,.y) (paste0(.x,'___',.y))),
+                                        purrr::map(varnm,function(.x) (.x))))
+
+  return(dataDictionary)
 }
 
+#' Expand the data dictionary to account for checkbox entries
+#'
+#' @param dataDictionary the data dictionary which describes the data set
+#'
+#' @return a tibble similar to data dictionary but with formatted checkbox entries
+#' @export
+#'
+#' @examples 'none'
+expandDataDictionary <- function(dataDictionary){
+  longerDataDictionary <- dataDictionary %>%
+    dplyr::mutate(varnm=expandedVarnm) %>%
+    dplyr::select(-expandedVarnm) %>%
+    tidyr::unnest_longer(varnm)
 
-main <- function(){
-  #Read Data Dictionary####
-  dataDict=read_csv('Data/meta/04 CONCORD REDCap for data management2021-11-26.csv') %>%
-    mutate(values=str_remove_all(values,'\"') %>% str_split(','),
-           shortcats=str_remove_all(shortcats,'\"') %>% str_split(',')) %>%
-    mutate(tp=if_else(tp=='1','01',tp),
-           expandedVarnm=if_else(tp=='01',map2(varnm,values,function(.x,.y) (paste0(.x,'___',.y))),map(varnm,function(.x) (.x))))
+  return(longerDataDictionary)
+}
 
-  #Subset dataDict creating variables for '01' data types
-  allVariableInfo <- dataDict %>%
-    mutate(varnm=expandedVarnm) %>%
-    select(varnm,tp,values,shortcats,source,myLabel) %>%
-    unnest_longer(varnm)
+dataTypesList <- function(longerDataDictionary){
+  columnTypes=longerDataDictionary %>%
+    dplyr::select(values,tp) %$%
+    purrr::map2(tp,values,~createColList(.x,.y)) %>%
+    stats::setNames(longerDataDictionary$varnm) %>%
+    append(list(redcap_repeat_instrument=vroom::col_character(),redcap_repeat_instance='i'),after=0)
 
-  #Creating column types list
-  columnTypes <- allVariableInfo %>%
-    select(values,tp) %$%
-    map2(tp,values,~createColList(.x,.y)) %>%
-    setNames(allVariableInfo$varnm) %>%
-    append(list(redcap_repeat_instrument=col_character(),redcap_repeat_instance='i'),after=0)
+  return(columnTypes)
+}
 
-  #Extracting names to read in
-  colNames <- columnTypes %>%
+#' readREDCapData
+#'
+#' @param path a path to the redcap data file
+#' @param longerDataDictionary a data dictionary preferably one which has been
+#' made longer to include the subvariables for checkboxes
+#' @param delim the deliminator used such as ',' for .csv files
+#'
+#' @return a formatted REDCAP data base as a tibble
+#' @export
+#'
+#' @examples 'none'
+readREDCapData <- function(path,longerDataDictionary, delim=','){
+
+  namedListOfVariableTypes <- dataTypesList(longerDataDictionary)
+
+  variableNames <- namedListOfVariableTypes %>%
     names()
 
-  #Read Data####
-  data=vroom('Data/raw/01 ConcordanceStudy_DATA_2022-12-30_1413.csv',delim=',',col_types=columnTypes,col_select=all_of(colNames)) %>%
-    mutate(rowID=row_number(),.before=1) %>%
-    mutate(vis_id=str_remove(vis_id,'^[0]*'))
+  #Read Data
+  redCAPdata <- vroom::vroom(path,delim=delim,col_types=namedListOfVariableTypes,col_select=tidyselect::all_of(variableNames)) %>%
+    dplyr::mutate(rowID=dplyr::row_number(),.before=1) %>%
+    dplyr::mutate(vis_id=stringr::str_remove(vis_id,'^[0]*'))
 
   #Format Months Properly
-  data <- allVariableInfo %>%
-    filter(tp=='dt') %$%
-    mutate(data,across(.col=all_of(varnm),ymd))
+  redCAPdata <- longerDataDictionary %>%
+    dplyr::filter(tp=='dt') %$%
+    dplyr::mutate(redCAPdata,dplyr::across(.col=tidyselect::all_of(varnm),lubridate::ymd))
 
-  allVariableInfo %>%
-    filter(tp=='01') %$%
-    pwalk(list(varnm,values,shortcats),~checkBoxFactorer(data,..1,..2,..3))
+  longerDataDictionary %>%
+    dplyr::filter(tp=='01') %$%
+    purrr::pwalk(list(varnm,values,shortcats),~checkBoxFactorer(redCAPdata,..1,..2,..3))
 
-  allVariableInfo %>%
-    filter(tp=='b') %$%
-    pwalk(list(varnm,values,shortcats),~radioShortCatsFactorer(data,..1,..2,..3))
+  longerDataDictionary %>%
+    dplyr::filter(tp=='b') %$%
+    purrr::pwalk(list(varnm,values,shortcats),~radioShortCatsFactorer(redCAPdata,..1,..2,..3))
 
-  allVariableInfo %>%
-    filter(tp=='b0') %$%
-    pwalk(list(varnm,values,shortcats),~radioBasicFactorer(data,..1,..2,..3))
+  longerDataDictionary %>%
+    dplyr::filter(tp=='b0') %$%
+    purrr::pwalk(list(varnm,values,shortcats),~radioBasicFactorer(redCAPdata,..1,..2,..3))
+
+  return(redCAPdata)
 }
-
 
 

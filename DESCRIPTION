@@ -12,8 +12,18 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
 Imports: 
     dplyr,
+    forcats,
     ggplot2,
     lubridate,
     magrittr,
-    readr,
-    tidyr
+    purrr,
+    vroom,
+    stats,
+    stringr,
+    tidyr,
+    tidyselect,
+    rlang,
+    lifecycle,
+    cli,
+    glue,
+    withr
