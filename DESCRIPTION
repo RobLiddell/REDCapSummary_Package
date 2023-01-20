@@ -18,7 +18,6 @@ Imports:
     magrittr,
     purrr,
     vroom,
-    stats,
     stringr,
     tidyr,
     tidyselect,
@@ -26,7 +25,9 @@ Imports:
     lifecycle,
     cli,
     glue,
-    withr
+    withr,
+    tibble,
+    flextable
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

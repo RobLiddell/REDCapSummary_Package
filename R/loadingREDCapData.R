@@ -98,7 +98,7 @@ dataTypesList <- function(longerDataDictionary){
   columnTypes=longerDataDictionary %>%
     dplyr::select(values,tp) %$%
     purrr::map2(tp,values,~createColList(.x,.y)) %>%
-    stats::setNames(longerDataDictionary$varnm) %>%
+    rlang::set_names(longerDataDictionary$varnm) %>%
     append(list(redcap_repeat_instrument=vroom::col_character(),redcap_repeat_instance='i'),after=0)
 
   return(columnTypes)
