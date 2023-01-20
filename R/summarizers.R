@@ -114,8 +114,30 @@ cutData <- function(graphicData,dataTypeList,graphicStyle,graphic){
     purrr::map2(dataColumns,dataType,~cutColumn(graphicData[[.x]],.y))
 
   return(graphicData)
-
-
 }
 
+#Changing data Labels from varnm to myLabel####
 
+#' Change Label of data columns
+#'
+#' @param graphicData data for each summary graphic
+#' @param dataType The type of each variable
+#' @param myLabel Labels to replace variable name with
+#'
+#' @return the same tibble but with changed labels
+#' @export
+#'
+#' @examples 2+2
+changeLabels <- function(graphicData,dataType,myLabel){
+  if(dataType[[1]]=='01'){
+    return(graphicData)
+  }
+
+  renamerList <- colnames(graphicData)[-c(1,2)] %>%
+   rlang::set_names(myLabel)
+
+  graphicData <- graphicData %>%
+    dplyr::rename(!!renamerList )
+
+  return(graphicData)
+}

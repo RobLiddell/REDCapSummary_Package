@@ -1,4 +1,4 @@
-devtools::load_all()
+# devtools::load_all()
 
 
 graphicDataTest <- tibble::tibble(rowNum=1:12,
@@ -27,30 +27,40 @@ test_that("Ranges are made to look nicer", {
 })
 
 
-test_that("cutColumn works", {
+test_that("cutColumn works with Factors", {
 
   #FACTORS
-  expect_equal(cutColumn(graphicDataTest['RED'],'b0'),
-               graphicDataTest['RED'])
+  expect_equal(cutColumn(graphicDataTest$RED,'b0'),
+               graphicDataTest$RED)
 
-  #NUMERIC
-  expect_equal(cutColumn(graphicDataTest[c(1:10),'BLUE'],'#'),
-               graphicDataTest[c(1:10),'BLUE'] %>%
-                 dplyr::mutate(BLUE=factor(BLUE) %>% forcats::fct_rev()))
+})
 
-  expect_equal(cutColumn(graphicDataTest[c(1:11),'BLUE'],'#'),
-               graphicDataTest[c(1:11),'BLUE'] %>%
-                 dplyr::mutate(BLUE=cut(BLUE,10) %>% forcats::fct_rev() %>% formatRangeLevels('#')))
+
+test_that("cutColumn works with Numbers", {
+
+   #NUMERIC
+  expect_equal(cutColumn(graphicDataTest$BLUE[c(1:10)],'#'),
+               graphicDataTest$BLUE[c(1:10)] %>%
+                 factor() %>% forcats::fct_rev())
+
+
+  expect_equal(cutColumn(graphicDataTest$BLUE[c(1:11)],'#'),
+               graphicDataTest$BLUE[c(1:11)] %>%
+                 cut(10) %>% forcats::fct_rev() %>% formatRangeLevels('#'))
+
+})
+
+test_that("cutColumn works with Dates", {
 
   #DATES
-  expect_equal(cutColumn(graphicDataTest[c(1:10),'GREEN'],'dt'),
-               graphicDataTest[c(1:10),'GREEN'] %>%
-                 dplyr::mutate(GREEN=factor(GREEN) %>% forcats::fct_rev()))
+  expect_equal(cutColumn(graphicDataTest$GREEN[c(1:10)],'dt'),
+               graphicDataTest$GREEN[c(1:10)] %>%
+                 factor() %>% forcats::fct_rev())
 
-  expect_equal(cutColumn(graphicDataTest['GREEN'],'dt'),
-               graphicDataTest['GREEN'] %>%
-                 dplyr::mutate(GREEN=as.numeric(GREEN) %>% cut(10) %>%
-                                 forcats::fct_rev()%>% formatRangeLevels('dt')))
+  expect_equal(cutColumn(graphicDataTest$GREEN,'dt'),
+               graphicDataTest$GREEN %>%
+                 as.numeric() %>% cut(10) %>%
+                                 forcats::fct_rev()%>% formatRangeLevels('dt'))
 
 })
 
@@ -68,3 +78,10 @@ test_that("cutData works",{
 
 
 
+
+test_that("data renaming works",{
+
+  expect_equal(changeLabels(graphicDataTest[,c(1:3)],'b0','red'),
+               graphicDataTest[,c(1:3)] %>%
+                 dplyr::rename(red=RED))
+})
